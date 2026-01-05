@@ -4,40 +4,47 @@ import { spawn } from "child_process";
 import { splitStream } from "@simple-libs/stream-utils";
 import { outputStream } from "@simple-libs/child-process-utils";
 
-type Arg = string | false | null | undefined;
+/**
+ * @typedef {string | false | null | undefined} Arg
+ */
+
+/**
+ * @typedef {Object} FileChange
+ * @property {string} filepath
+ * @property {false} isBinary
+ * @property {number} additions
+ * @property {number} deletions
+ * @property {number} rawAdditions
+ * @property {number} rawDeletions
+ */
+
+/**
+ * @typedef {Object} Commit
+ * @property {string} hash
+ * @property {{ name: string, time: string }} author
+ * @property {{ name: string, time: string }} committer
+ * @property {string} message
+ * @property {FileChange[]} files
+ * @property {boolean} isMerge
+ */
+
 const SCISSOR = "------------------------ >8 ------------------------";
 
-type FileChange = {
-	filepath: string;
-	isBinary: false;
-	additions: number;
-	deletions: number;
-	rawAdditions: number;
-	rawDeletions: number;
-};
-
-type Commit = {
-	hash: string;
-	author: { name: string; time: string };
-	committer: { name: string; time: string };
-	message: string;
-	files: FileChange[];
-	isMerge: boolean;
-};
-
 async function* getCommits() {
-	const args: Arg[] = [
+	/** @type {Arg[]} */
+	const args = [
 		"log",
 		`--numstat`,
 		`--format=${SCISSOR}%nhash: %H%nparents: %P%nsubject: %s%nauthor name: %an%nauthor date: %aI%ncommitter name: %cn%ncommitter date: %cI`,
 	];
 	const stdout = outputStream(
-		spawn("git", args.filter(Boolean) as string[], {
+		spawn("git", args.filter(Boolean), {
 			cwd: process.cwd(),
 		}),
 	);
 	const commitsStream = splitStream(stdout, `${SCISSOR}\n`);
-	let chunk: string;
+	/** @type {string} */
+	let chunk;
 
 	for await (chunk of commitsStream) {
 		chunk = chunk.trim();
@@ -46,7 +53,11 @@ async function* getCommits() {
 	}
 }
 
-function parseNumstatLine(line: string): FileChange | null {
+/**
+ * @param {string} line
+ * @returns {FileChange | null}
+ */
+function parseNumstatLine(line) {
 	const tabSplit = line.split("\t");
 	const parts =
 		tabSplit.length >= 3
@@ -74,7 +85,11 @@ function parseNumstatLine(line: string): FileChange | null {
 	};
 }
 
-function parseCommitChunk(chunk: string): Commit {
+/**
+ * @param {string} chunk
+ * @returns {Commit}
+ */
+function parseCommitChunk(chunk) {
 	let hash = "";
 	let parentsLine = "";
 	let subject = "";
@@ -82,7 +97,8 @@ function parseCommitChunk(chunk: string): Commit {
 	let authorTime = "";
 	let committerName = "";
 	let committerTime = "";
-	const files: FileChange[] = [];
+	/** @type {FileChange[]} */
+	const files = [];
 
 	for (const rawLine of chunk.split("\n")) {
 		const line = rawLine.trimEnd();

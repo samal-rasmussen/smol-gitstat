@@ -5,9 +5,9 @@
 	"license": "ISC",
 	"author": "",
 	"type": "module",
-	"main": "src/index.ts",
+	"main": "src/index.js",
 	"bin": {
-		"smol-gitstat": "src/index.ts"
+		"smol-gitstat": "src/index.js"
 	},
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1"
