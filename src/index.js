@@ -148,6 +148,7 @@ function parseCommitChunk(chunk) {
 }
 
 async function main() {
+	const startTime = Date.now();
 	const cliOptions = parseCliOptions();
 	if (cliOptions.help) {
 		process.stdout.write(getHelpText());
@@ -179,6 +180,10 @@ async function main() {
 			output.once("error", reject);
 			output.end();
 		});
+		const durationMs = Date.now() - startTime;
+		process.stderr.write(
+			`Wrote gitstat output to ${cliOptions.outPath} in ${formatDuration(durationMs)}.\n`,
+		);
 	}
 }
 
@@ -234,6 +239,18 @@ Options:
       --stdout      Write output to stdout instead of a file
   -h, --help        Show this help
 `;
+}
+
+/**
+ * @param {number} durationMs
+ * @returns {string}
+ */
+function formatDuration(durationMs) {
+	if (durationMs < 1000) {
+		return `${durationMs}ms`;
+	}
+	const seconds = durationMs / 1000;
+	return `${seconds.toFixed(2)}s`;
 }
 
 /**
