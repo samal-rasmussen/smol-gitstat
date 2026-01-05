@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
-import { spawn } from "child_process";
+import { spawn, spawnSync } from "child_process";
 import { splitStream } from "@simple-libs/stream-utils";
 import { outputStream } from "@simple-libs/child-process-utils";
+import path from "path";
 
 /**
  * @typedef {string | false | null | undefined} Arg
@@ -149,12 +150,13 @@ function parseCommitChunk(chunk) {
 }
 
 async function main() {
+	const repoName = getRepoName();
 	let first = true;
 	process.stdout.write(`{
   "version": "1.0.0",
   "projects": [
     {
-      "name": "bokin-fo",
+      "name": "${repoName}",
       "commits": [
 `);
 
@@ -168,3 +170,16 @@ async function main() {
 }
 
 main();
+
+/**
+ * @returns {string}
+ */
+function getRepoName() {
+	const result = spawnSync("git", ["rev-parse", "--show-toplevel"], {
+		encoding: "utf8",
+	});
+	if (result.status === 0 && result.stdout) {
+		return path.basename(result.stdout.trim());
+	}
+	return path.basename(process.cwd());
+}
