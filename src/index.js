@@ -8,10 +8,6 @@ import path from "path";
 import { parseArgs } from "node:util";
 
 /**
- * @typedef {string | false | null | undefined} Arg
- */
-
-/**
  * @typedef {Object} FileChange
  * @property {string} filepath
  * @property {false} isBinary
@@ -34,14 +30,14 @@ import { parseArgs } from "node:util";
 const SCISSOR = "------------------------ >8 ------------------------";
 
 async function* getCommits() {
-	/** @type {Arg[]} */
+	/** @type {string[]} */
 	const args = [
 		"log",
 		`--numstat`,
 		`--format=${SCISSOR}%nhash: %H%nparents: %P%nsubject: %s%nauthor name: %an%nauthor date: %aI%ncommitter name: %cn%ncommitter date: %cI`,
 	];
 	const stdout = outputStream(
-		spawn("git", args.filter(Boolean), {
+		spawn("git", args, {
 			cwd: process.cwd(),
 		}),
 	);
@@ -158,9 +154,8 @@ async function main() {
 		return;
 	}
 
-	const output = cliOptions.stdout
-		? process.stdout
-		: fs.createWriteStream(cliOptions.outPath);
+	/** @type {NodeJS.WritableStream} */
+	const output = cliOptions.stdout ? process.stdout : fs.createWriteStream(cliOptions.outPath);
 	const repoName = getRepoName();
 	let first = true;
 	output.write(`{
@@ -180,8 +175,8 @@ async function main() {
 	output.write("\n      ]\n    }\n  ]\n}\n");
 	if (!cliOptions.stdout) {
 		await new Promise((resolve, reject) => {
-			output.on("finish", resolve);
-			output.on("error", reject);
+			output.once("finish", () => resolve(undefined));
+			output.once("error", reject);
 			output.end();
 		});
 	}

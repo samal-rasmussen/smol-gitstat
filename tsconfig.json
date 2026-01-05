@@ -3,6 +3,8 @@
 	"compilerOptions": {
 		// File Layout
 		"rootDir": "./src",
+		"allowJs": true,
+		"checkJs": true,
 		// "outDir": "./dist",
 
 		// Environment Settings
@@ -40,5 +42,6 @@
 		"noUncheckedSideEffectImports": true,
 		"moduleDetection": "force",
 		"skipLibCheck": true
-	}
+	},
+	"include": ["src/**/*.js"]
 }
