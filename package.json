@@ -6,6 +6,9 @@
 	"author": "",
 	"type": "module",
 	"main": "src/index.ts",
+	"bin": {
+		"smol-gitstat": "src/index.ts"
+	},
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},

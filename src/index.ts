@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { spawn } from "child_process";
 import { splitStream } from "@simple-libs/stream-utils";
 import { outputStream } from "@simple-libs/child-process-utils";
