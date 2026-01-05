@@ -3,7 +3,9 @@
 import { spawn, spawnSync } from "child_process";
 import { splitStream } from "@simple-libs/stream-utils";
 import { outputStream } from "@simple-libs/child-process-utils";
+import fs from "fs";
 import path from "path";
+import { parseArgs } from "node:util";
 
 /**
  * @typedef {string | false | null | undefined} Arg
@@ -150,9 +152,18 @@ function parseCommitChunk(chunk) {
 }
 
 async function main() {
+	const cliOptions = parseCliOptions();
+	if (cliOptions.help) {
+		process.stdout.write(getHelpText());
+		return;
+	}
+
+	const output = cliOptions.stdout
+		? process.stdout
+		: fs.createWriteStream(cliOptions.outPath);
 	const repoName = getRepoName();
 	let first = true;
-	process.stdout.write(`{
+	output.write(`{
   "version": "1.0.0",
   "projects": [
     {
@@ -162,14 +173,73 @@ async function main() {
 
 	for await (const chunk of getCommits()) {
 		const commit = parseCommitChunk(chunk);
-		process.stdout.write(`${first ? "" : ",\n"}${JSON.stringify(commit, null, 2)}`);
+		output.write(`${first ? "" : ",\n"}${JSON.stringify(commit, null, 2)}`);
 		first = false;
 	}
 
-	process.stdout.write("\n      ]\n    }\n  ]\n}\n");
+	output.write("\n      ]\n    }\n  ]\n}\n");
+	if (!cliOptions.stdout) {
+		await new Promise((resolve, reject) => {
+			output.on("finish", resolve);
+			output.on("error", reject);
+			output.end();
+		});
+	}
 }
 
-main();
+main().catch((error) => {
+	process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+	process.exitCode = 1;
+});
+
+/**
+ * @typedef {Object} CliOptions
+ * @property {boolean} help
+ * @property {boolean} stdout
+ * @property {string} outPath
+ */
+
+/**
+ * @returns {CliOptions}
+ */
+function parseCliOptions() {
+	const { values } = parseArgs({
+		args: process.argv.slice(2),
+		options: {
+			help: { type: "boolean", short: "h" },
+			stdout: { type: "boolean" },
+			out: { type: "string", short: "o" },
+		},
+		strict: true,
+		allowPositionals: false,
+	});
+
+	const help = Boolean(values.help);
+	const stdout = Boolean(values.stdout);
+	const outPath = values.out ?? "gitstat_result.json";
+
+	if (stdout && values.out != null) {
+		throw new Error("Cannot use both --stdout and --out.");
+	}
+
+	return { help, stdout, outPath };
+}
+
+/**
+ * @returns {string}
+ */
+function getHelpText() {
+	return `smol-gitstat
+
+Usage:
+  smol-gitstat [--out <path> | --stdout]
+
+Options:
+  -o, --out <path>  Write output to a file (default: gitstat_result.json)
+      --stdout      Write output to stdout instead of a file
+  -h, --help        Show this help
+`;
+}
 
 /**
  * @returns {string}
