@@ -1,6 +1,6 @@
 {
 	"name": "smol-gitstat",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"description": "This tool generates a JSON logfile of a git repository, intended to be used on gitstat.com.",
 	"license": "MIT",
 	"author": "Sámal Rasmussen",
