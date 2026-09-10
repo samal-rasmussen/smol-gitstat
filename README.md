@@ -16,4 +16,5 @@ By default it writes `gitstat_result.json` to the current working directory, and
 
 -   `-o, --out <path>`: write output JSON to a file at `<path>` (default: `gitstat_result.json`)
 -   `--stdout`: write output JSON to stdout instead of a file
+-   `--author-date`: use the author date as the commit date. gitstat.com graphs commits by commit date, which for long-lived branches reflects when the branch was merged rather than when the work was done. Author dates preserve when the work actually happened.
 -   `-h, --help`: show help

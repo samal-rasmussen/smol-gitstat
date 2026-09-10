@@ -169,6 +169,9 @@ async function main() {
 
 	for await (const chunk of getCommits()) {
 		const commit = parseCommitChunk(chunk);
+		if (cliOptions.authorDate) {
+			commit.committer.time = commit.author.time;
+		}
 		output.write(`${first ? "" : ",\n"}${JSON.stringify(commit, null, 2)}`);
 		first = false;
 	}
@@ -196,6 +199,7 @@ main().catch((error) => {
  * @typedef {Object} CliOptions
  * @property {boolean} help
  * @property {boolean} stdout
+ * @property {boolean} authorDate
  * @property {string} outPath
  */
 
@@ -209,6 +213,7 @@ function parseCliOptions() {
 			help: { type: "boolean", short: "h" },
 			stdout: { type: "boolean" },
 			out: { type: "string", short: "o" },
+			"author-date": { type: "boolean" },
 		},
 		strict: true,
 		allowPositionals: false,
@@ -216,13 +221,14 @@ function parseCliOptions() {
 
 	const help = Boolean(values.help);
 	const stdout = Boolean(values.stdout);
+	const authorDate = Boolean(values["author-date"]);
 	const outPath = values.out ?? "gitstat_result.json";
 
 	if (stdout && values.out != null) {
 		throw new Error("Cannot use both --stdout and --out.");
 	}
 
-	return { help, stdout, outPath };
+	return { help, stdout, authorDate, outPath };
 }
 
 /**
@@ -232,11 +238,14 @@ function getHelpText() {
 	return `smol-gitstat
 
 Usage:
-  smol-gitstat [--out <path> | --stdout]
+  smol-gitstat [--out <path> | --stdout] [--author-date]
 
 Options:
   -o, --out <path>  Write output to a file (default: gitstat_result.json)
       --stdout      Write output to stdout instead of a file
+      --author-date Use the author date as the commit date. Useful for
+                    long-lived branches, where commit dates reflect when the
+                    branch was merged rather than when the work was done.
   -h, --help        Show this help
 `;
 }
