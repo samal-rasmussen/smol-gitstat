@@ -41,7 +41,7 @@ async function* getCommits() {
 		// Detect renames regardless of the user's diff.renames config.
 		`--find-renames`,
 		`--numstat`,
-		`--format=${COMMIT_SEPARATOR}%nhash: %H%nparents: %P%nsubject: %s%nauthor name: %an%nauthor date: %aI%ncommitter name: %cn%ncommitter date: %cI%nbody:%n%b${BODY_END}`,
+		`--format=${COMMIT_SEPARATOR}%nhash: %H%nparents: %P%nsubject: %s%nauthor name: %an%nauthor date: %aI%ncommitter name: %cn%ncommitter date: %cI%nbody:%n%b%n${BODY_END}`,
 	];
 	const stdout = outputStream(
 		spawn("git", args, {
