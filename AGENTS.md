@@ -69,5 +69,5 @@ There is no test suite. Verify changes by running the script against this repo
 
 ## Publishing
 
-`npm run publish` runs the type check and then `npm publish --access public`
+`npm run release` runs the type check and then `npm publish --access public`
 against registry.npmjs.org. Bump `version` in `package.json` first.

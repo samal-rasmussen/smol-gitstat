@@ -27,7 +27,7 @@
 	],
 	"scripts": {
 		"check": "tsc --noEmit",
-		"publish": "npm run check && npm publish --registry https://registry.npmjs.org/ --access public"
+		"release": "npm run check && npm publish --registry https://registry.npmjs.org/ --access public"
 	},
 	"devDependencies": {
 		"typescript": "5.9.3"
