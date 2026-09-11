@@ -10,7 +10,8 @@ import { parseArgs } from "node:util";
 /**
  * @typedef {Object} FileChange
  * @property {string} filepath
- * @property {false} isBinary
+ * @property {string} [renameOf] The previous path, when git detected a rename
+ * @property {boolean} isBinary
  * @property {number} additions
  * @property {number} deletions
  * @property {number} rawAdditions
@@ -32,7 +33,12 @@ const SCISSOR = "------------------------ >8 ------------------------";
 async function* getCommits() {
 	/** @type {string[]} */
 	const args = [
+		// Without this git escapes non-ASCII paths as quoted octal sequences.
+		"-c",
+		"core.quotePath=false",
 		"log",
+		// Detect renames regardless of the user's diff.renames config.
+		`--find-renames`,
 		`--numstat`,
 		`--format=${SCISSOR}%nhash: %H%nparents: %P%nsubject: %s%nauthor name: %an%nauthor date: %aI%ncommitter name: %cn%ncommitter date: %cI`,
 	];
@@ -53,6 +59,48 @@ async function* getCommits() {
 }
 
 /**
+ * Splits a rename path as printed by git numstat, either `old => new` or
+ * `prefix{old => new}suffix`, into the old and new paths.
+ *
+ * @param {string} filepath
+ * @returns {{ renameOf: string, filepath: string } | null}
+ */
+function parseRenamePath(filepath) {
+	const braces = /^(.*)\{(.*) => (.*)\}(.*)$/.exec(filepath);
+	if (braces) {
+		const [, prefix = "", oldPart, newPart, suffix = ""] = braces;
+		return {
+			renameOf: joinRenamePath(prefix, oldPart ?? "", suffix),
+			filepath: joinRenamePath(prefix, newPart ?? "", suffix),
+		};
+	}
+
+	const whole = /^(.*) => (.*)$/.exec(filepath);
+	if (whole) {
+		const [, renameOf = "", newPath = ""] = whole;
+		return { renameOf, filepath: newPath };
+	}
+
+	return null;
+}
+
+/**
+ * When the middle part is empty the prefix and suffix share the slash between
+ * them, e.g. `x/{ => src}/file` means `x/file` was renamed to `x/src/file`.
+ *
+ * @param {string} prefix
+ * @param {string} part
+ * @param {string} suffix
+ * @returns {string}
+ */
+function joinRenamePath(prefix, part, suffix) {
+	if (!part && prefix.endsWith("/") && suffix.startsWith("/")) {
+		return prefix + suffix.slice(1);
+	}
+	return prefix + part + suffix;
+}
+
+/**
  * @param {string} line
  * @returns {FileChange | null}
  */
@@ -70,13 +118,17 @@ function parseNumstatLine(line) {
 
 	if (!additionsRaw || !deletionsRaw || !filepath) return null;
 
-	const additions = additionsRaw === "-" ? 0 : Number.parseInt(additionsRaw, 10);
-	const deletions = deletionsRaw === "-" ? 0 : Number.parseInt(deletionsRaw, 10);
+	// Git prints "-" for both counts of a binary file.
+	const isBinary = additionsRaw === "-" && deletionsRaw === "-";
+	const additions = isBinary ? 0 : Number.parseInt(additionsRaw, 10);
+	const deletions = isBinary ? 0 : Number.parseInt(deletionsRaw, 10);
 	if (!Number.isFinite(additions) || !Number.isFinite(deletions)) return null;
 
+	const rename = parseRenamePath(filepath);
 	return {
-		filepath,
-		isBinary: false,
+		filepath: rename ? rename.filepath : filepath,
+		...(rename ? { renameOf: rename.renameOf } : {}),
+		isBinary,
 		additions,
 		deletions,
 		rawAdditions: additions,

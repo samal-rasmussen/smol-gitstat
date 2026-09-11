@@ -8,16 +8,20 @@ changing the code.
 
 ## What it does
 
-1. Runs `git log --numstat` with a custom `--format` that prints a scissor line
-   (`------------------------ >8 ------------------------`) followed by
-   `hash:`, `parents:`, `subject:`, author/committer name and ISO date, then the
-   per-file `additions<TAB>deletions<TAB>path` numstat lines.
+1. Runs `git log --find-renames --numstat` with a custom `--format` that prints
+   a scissor line (`------------------------ >8 ------------------------`)
+   followed by `hash:`, `parents:`, `subject:`, author/committer name and ISO
+   date, then the per-file `additions<TAB>deletions<TAB>path` numstat lines.
+   Git is run with `core.quotePath=false` so non-ASCII paths are printed as-is
+   instead of as quoted octal escapes.
 2. Streams stdout and splits it on the scissor line, so one chunk = one commit.
    The repo is never loaded into memory in full.
 3. Parses each chunk into a `Commit` object (`hash`, `author`, `committer`,
    `message`, `files[]`, `isMerge`). Binary files report `-` in numstat and are
-   recorded with 0 additions/deletions. `isMerge` is true when there is more
-   than one parent.
+   recorded with `isBinary: true` and 0 additions/deletions. Renames are printed
+   by git as `old => new` or `prefix{old => new}suffix`; they are recorded with
+   the new path as `filepath` and the old path as `renameOf`. `isMerge` is true
+   when there is more than one parent.
 4. Writes the result incrementally as
    `{ "version": "1.0.0", "projects": [{ "name": <repo folder name>, "commits": [...] }] }`
    to `gitstat_result.json` by default, or `--out <path>`, or `--stdout`.
