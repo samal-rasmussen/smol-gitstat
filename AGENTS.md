@@ -9,15 +9,17 @@ changing the code.
 ## What it does
 
 1. Runs `git log --find-renames --numstat` with a custom `--format` that prints
-   a scissor line (`------------------------ >8 ------------------------`)
+   a commit separator line (`------------------------ >8 ------------------------`)
    followed by `hash:`, `parents:`, `subject:`, author/committer name and ISO
-   date, then the per-file `additions<TAB>deletions<TAB>path` numstat lines.
+   date, a `body:` line, the commit body verbatim up to a body-end sentinel line,
+   then the per-file `additions<TAB>deletions<TAB>path` numstat lines.
    Git is run with `core.quotePath=false` so non-ASCII paths are printed as-is
    instead of as quoted octal escapes.
-2. Streams stdout and splits it on the scissor line, so one chunk = one commit.
+2. Streams stdout and splits it on the commit separator line, so one chunk = one commit.
    The repo is never loaded into memory in full.
 3. Parses each chunk into a `Commit` object (`hash`, `author`, `committer`,
-   `message`, `files[]`, `isMerge`). Binary files report `-` in numstat and are
+   `message`, `files[]`, `isMerge`). `message` is the subject, and when the
+   commit has a body, a blank line and the body. Binary files report `-` in numstat and are
    recorded with `isBinary: true` and 0 additions/deletions. Renames are printed
    by git as `old => new` or `prefix{old => new}suffix`; they are recorded with
    the new path as `filepath` and the old path as `renameOf`. `isMerge` is true

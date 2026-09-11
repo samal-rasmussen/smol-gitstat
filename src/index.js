@@ -28,7 +28,8 @@ import { parseArgs } from "node:util";
  * @property {boolean} isMerge
  */
 
-const SCISSOR = "------------------------ >8 ------------------------";
+const COMMIT_SEPARATOR = "------------------------ commit separator ------------------------";
+const BODY_END = "------------------------ body end ------------------------";
 
 async function* getCommits() {
 	/** @type {string[]} */
@@ -40,14 +41,14 @@ async function* getCommits() {
 		// Detect renames regardless of the user's diff.renames config.
 		`--find-renames`,
 		`--numstat`,
-		`--format=${SCISSOR}%nhash: %H%nparents: %P%nsubject: %s%nauthor name: %an%nauthor date: %aI%ncommitter name: %cn%ncommitter date: %cI`,
+		`--format=${COMMIT_SEPARATOR}%nhash: %H%nparents: %P%nsubject: %s%nauthor name: %an%nauthor date: %aI%ncommitter name: %cn%ncommitter date: %cI%nbody:%n%b${BODY_END}`,
 	];
 	const stdout = outputStream(
 		spawn("git", args, {
 			cwd: process.cwd(),
 		}),
 	);
-	const commitsStream = splitStream(stdout, `${SCISSOR}\n`);
+	const commitsStream = splitStream(stdout, `${COMMIT_SEPARATOR}\n`);
 	/** @type {string} */
 	let chunk;
 
@@ -148,12 +149,31 @@ function parseCommitChunk(chunk) {
 	let authorTime = "";
 	let committerName = "";
 	let committerTime = "";
+	/** @type {string[]} */
+	const bodyLines = [];
+	let inBody = false;
 	/** @type {FileChange[]} */
 	const files = [];
 
 	for (const rawLine of chunk.split("\n")) {
+		// The body is free text and may contain lines that look like headers or
+		// numstat lines, so it is delimited and copied verbatim.
+		if (inBody) {
+			if (rawLine === BODY_END) {
+				inBody = false;
+			} else {
+				bodyLines.push(rawLine);
+			}
+			continue;
+		}
+
 		const line = rawLine.trimEnd();
 		if (!line) continue;
+
+		if (line === "body:") {
+			inBody = true;
+			continue;
+		}
 
 		if (line.startsWith("hash:")) {
 			hash = line.slice("hash:".length).trim();
@@ -189,11 +209,12 @@ function parseCommitChunk(chunk) {
 	}
 
 	const parents = parentsLine.split(/\s+/).filter(Boolean);
+	const body = bodyLines.join("\n").trim();
 	return {
 		hash,
 		author: { name: authorName, time: authorTime },
 		committer: { name: committerName, time: committerTime },
-		message: subject,
+		message: body ? `${subject}\n\n${body}` : subject,
 		files,
 		isMerge: parents.length > 1,
 	};
