@@ -41,6 +41,40 @@ export function validate(data) {
 }
 
 /**
+ * Parse and validate JSON text, load it as the dataset and persist it.
+ * @param {string} text
+ * @returns {Promise<void>}
+ * @throws {Error} With the reason when the text is not valid JSON or fails validation.
+ */
+export async function importText(text) {
+  /** @type {unknown} */
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("it is not valid JSON");
+  }
+  const problem = validate(parsed);
+  if (problem !== null) throw new Error(problem);
+  const data = /** @type {GitStatData} */ (parsed);
+  const sizeBytes = new TextEncoder().encode(text).byteLength;
+  dataset.load(data, sizeBytes, snapshot());
+  await db.set({ data, sizeBytes });
+}
+
+/**
+ * Fetch a dataset by URL and import it.
+ * @param {string} url
+ * @returns {Promise<void>}
+ * @throws {Error} With the reason when fetching or importing fails.
+ */
+export async function importUrl(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`fetching it failed with ${response.status}`);
+  await importText(await response.text());
+}
+
+/**
  * A human-readable byte size.
  * @param {number} bytes
  * @returns {string}
@@ -61,7 +95,8 @@ export function registerUploadView(Alpine) {
   const app = () => /** @type {AppStore} */ (Alpine.store("app"));
   Alpine.data("uploadView", () => ({
     parsing: false,
-    error: "",
+    // A failed `?data=` load at boot is reported here.
+    error: app().bootError,
     dragging: false,
 
     /** Whether the loaded-data card shows. Reads `dataVersion` so it re-evaluates. */
@@ -98,27 +133,23 @@ export function registerUploadView(Alpine) {
     },
     /** @param {File} file */
     readFile(file) {
-      this.load(() => file.text(), file.name);
+      this.load(async () => importText(await file.text()), file.name);
     },
     loadSample() {
-      this.load(async () => {
-        const response = await fetch("samples/smol-gitstat-web.json");
-        if (!response.ok) throw new Error(`fetching it failed with ${response.status}`);
-        return response.text();
-      }, "the sample");
+      this.load(() => importUrl("samples/smol-gitstat-web.json"), "the sample");
     },
     /**
      * Show the progress state, then parse. The parse starts after a
      * `setTimeout(0)` so the progress state paints first.
-     * @param {() => Promise<string>} getText
+     * @param {() => Promise<void>} run - Reads, parses and stores the data.
      * @param {string} label - What is being loaded, for the error message.
      */
-    load(getText, label) {
+    load(run, label) {
       this.error = "";
       this.parsing = true;
       setTimeout(async () => {
         try {
-          await this.parseAndStore(await getText());
+          await run();
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
           this.error = `Could not load ${label}: ${reason}.`;
@@ -126,22 +157,6 @@ export function registerUploadView(Alpine) {
           this.parsing = false;
         }
       }, 0);
-    },
-    /** @param {string} text */
-    async parseAndStore(text) {
-      /** @type {unknown} */
-      let parsed;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        throw new Error("it is not valid JSON");
-      }
-      const problem = validate(parsed);
-      if (problem !== null) throw new Error(problem);
-      const data = /** @type {GitStatData} */ (parsed);
-      const sizeBytes = new TextEncoder().encode(text).byteLength;
-      dataset.load(data, sizeBytes, snapshot());
-      await db.set({ data, sizeBytes });
     },
     async clearData() {
       this.error = "";

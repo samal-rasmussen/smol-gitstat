@@ -9,6 +9,8 @@ interface AppStore {
   lastTime: number;
   sizeBytes: number;
   summary: string;
+  /** Why the `?data=` dataset could not be loaded at boot, or "". */
+  bootError: string;
 }
 
 /** `$store.config`: the `Config` shape plus its actions. */

@@ -28,15 +28,28 @@ changing the code.
    `{ "version": "1.0.0", "projects": [{ "name": <repo folder name>, "commits": [...] }] }`
    to `gitstat_result.json` by default, or `--out <path>`, or `--stdout`.
    A timing message goes to stderr when writing to a file.
+5. Unless `--stdout` or `--no-serve`, serves the web frontend in `web/` on
+   127.0.0.1 using `sirv` with `node:http`, and opens the browser at
+   `/?data=gitstat_result.json#/graphs`. `/gitstat_result.json` is a route
+   that streams the file written in step 4 (wherever `--out` put it); every
+   other path goes to sirv. The frontend's boot sees `?data=`, fetches and
+   imports that URL, then drops the parameter. The default port is 7070,
+   falling back to the next free one; an explicit `--port` that is taken is
+   an error. The process stays alive until Ctrl+C.
 
 ## Layout
 
 - `README.md` — user docs (usage and flags). Update it alongside `getHelpText()`.
-- `src/index.js` — the entire program. It is the `main` entry and the
+- `src/index.js` — the entire CLI. It is the `main` entry and the
   `smol-gitstat` bin. Everything (git spawning, streaming, parsing, CLI
-  parsing, output) lives here.
-- `package.json` — `files` whitelists only `README.md`, `src/index.js`, and
-  `LICENSE.md` for publishing. Adding a new source file means adding it here.
+  parsing, output, serving) lives here.
+- `web/` — the buildless web frontend, a separate project with its own
+  `package.json`, checks and tests; see `web/AGENTS.md`. The CLI serves it
+  as-is from the installed package.
+- `package.json` — `files` whitelists `README.md`, `src/index.js`,
+  `LICENSE.md` and the runtime parts of `web/` (`index.html`, `css`, `js`,
+  `views`, `assets`, `vendor`, `LICENSE`) for publishing. Adding a new source
+  file or web folder means adding it here; check with `npm pack --dry-run`.
 - `tsconfig.json` — type-checks the plain JS via JSDoc (`allowJs` +
   `checkJs`, `strict`, `noUncheckedIndexedAccess`). No emit; `dist/` is unused.
 
@@ -45,9 +58,10 @@ changing the code.
 - Plain ESM JavaScript (`"type": "module"`), no build step, no transpiling.
   Types are JSDoc `@typedef` / `@param` / `@returns` comments and must satisfy
   `tsc --noEmit`.
-- Requires Node >= 24. Only Node built-ins plus two small deps:
-  `@simple-libs/stream-utils` (`splitStream`) and
-  `@simple-libs/child-process-utils` (`outputStream`).
+- Requires Node >= 24. Only Node built-ins plus three small deps:
+  `@simple-libs/stream-utils` (`splitStream`),
+  `@simple-libs/child-process-utils` (`outputStream`) and `sirv` (static
+  file serving for the web frontend).
 - Tabs for indentation, double quotes, semicolons.
 - CLI flags are parsed with `node:util` `parseArgs` in strict mode; unknown
   flags throw. Keep `getHelpText()` and the README flags list in sync when
@@ -58,14 +72,16 @@ changing the code.
 ## Working in the repo
 
 ```sh
-npm install          # installs typescript + the two runtime deps
-npm run check        # tsc --noEmit — the only test/lint gate; run before committing
-node src/index.js    # run against the current repo, writes gitstat_result.json
-node src/index.js -o /tmp/out.json && head -30 /tmp/out.json   # inspect output shape
+npm install          # installs typescript + the runtime deps
+npm run check        # tsc --noEmit — the CLI's only test/lint gate; run before committing
+node src/index.js    # run against the current repo, writes gitstat_result.json and serves the frontend
+node src/index.js --no-serve -o /tmp/out.json && head -30 /tmp/out.json   # inspect output shape
 ```
 
-There is no test suite. Verify changes by running the script against this repo
-(or a larger one) and inspecting the JSON, and by running `npm run check`.
+There is no test suite for the CLI. Verify changes by running the script
+against this repo (or a larger one) and inspecting the JSON, and by running
+`npm run check`. Changes under `web/` go through that project's own checks
+(`cd web && npm run check && npm run lint && npm test && npm run test:e2e`).
 
 ## Publishing
 

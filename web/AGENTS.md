@@ -81,8 +81,12 @@ markup, if it ever exists, goes in `partials/`.
 ## How it runs
 
 **Boot** (`js/app.js`): register the `x-view` directive, the `app`, `router` and `config`
-stores and the view components; load the persisted config from localStorage; open
-IndexedDB and, if a dataset is stored, load it; start the router; `Alpine.start()`. The
+stores and the view components; load the persisted config from localStorage; if the URL
+has `?data=<url>`, fetch and import that dataset (replacing the stored one), then drop the
+parameter with `history.replaceState` so a reload restores from IndexedDB; otherwise open
+IndexedDB and, if a dataset is stored, load it; start the router; `Alpine.start()`. A
+failed `?data=` load is kept in `$store.app.bootError` and shown on the upload view. The
+`smol-gitstat` CLI serves this folder and opens it as `/?data=gitstat_result.json#/graphs`. The
 async steps are awaited before `start()` so the first render already knows whether data
 exists. Two shell details matter: deferred classic scripts and module scripts execute in
 document order, so `Chart` exists before `app.js` runs; and the empty `x-data` on `<body>`
@@ -317,9 +321,10 @@ includes `js`, `tests`, `vendor/*.d.ts` and `playwright.config.js`. JSDoc conven
   histories, so expected values are known.
 - **End-to-end** (`tests/e2e/`, `npm run test:e2e`): Playwright with Chromium
   (`npx playwright install chromium` once); `playwright.config.js` starts sirv on a test
-  port. Six scenarios: upload and land on graphs; group-by changes the summary table;
+  port. Scenarios: upload and land on graphs; group-by changes the summary table;
   expand/exclude a commit and see it dimmed; alias merges authors; reload persists;
-  clearing data triggers the guard redirect.
+  clearing data triggers the guard redirect; `?data=` loads and drops the parameter;
+  a failing `?data=` shows the reason on the upload view.
 - **Fixture** (`tests/fixtures/small.json`): twenty hand-written commits across two
   projects and three authors, with a merge, a binary, a `renameOf` rename, an
   old-notation rename, a commit body and a docs-only commit.

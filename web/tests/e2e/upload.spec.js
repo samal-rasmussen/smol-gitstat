@@ -29,3 +29,20 @@ test("clearing data makes the guard redirect", async ({ page }) => {
   await expect(page).toHaveURL(/#\/$/);
   await expect(page.getByRole("heading", { name: "Upload" })).toBeVisible();
 });
+
+test("?data= loads that dataset and drops the parameter", async ({ page }) => {
+  await page.goto("/?data=tests/fixtures/small.json#/graphs");
+  await expect(page.getByRole("heading", { name: "Graphs" })).toBeVisible();
+  await expect(page.locator("nav")).toContainText("2 projects · 20 commits");
+  expect(page.url()).not.toContain("data=");
+  await page.reload();
+  await expect(page.locator("nav")).toContainText("2 projects · 20 commits");
+});
+
+test("?data= with a bad URL shows why on the upload page", async ({ page }) => {
+  await page.goto("/?data=missing.json#/graphs");
+  await expect(page).toHaveURL(/#\/$/);
+  await expect(page.getByRole("alert")).toHaveText(
+    "Could not load missing.json: fetching it failed with 404.",
+  );
+});

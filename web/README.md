@@ -10,14 +10,16 @@ Everything runs client-side. Uploaded data is parsed and stored only in your bro
 
 ## Generating data
 
-Run [smol-gitstat](https://github.com/samal-rasmussen/smol-gitstat) in one or more
-repositories:
+Run [smol-gitstat](https://github.com/samal-rasmussen/smol-gitstat) in a repository:
 
 ```sh
-npx smol-gitstat --out gitstat.json
+npx smol-gitstat
 ```
 
-then drop the resulting `gitstat.json` on the upload page. The bundled sample
+It writes `gitstat_result.json`, serves this frontend locally and opens it with that data
+loaded (via `?data=gitstat_result.json`). To use the hosted frontend instead, run
+`npx smol-gitstat --no-serve` and drop the resulting `gitstat_result.json` on the upload
+page. The bundled sample
 (`samples/smol-gitstat-web.json`) is this repository's own history.
 
 ## Running

@@ -5,7 +5,10 @@ import { splitStream } from "@simple-libs/stream-utils";
 import { outputStream } from "@simple-libs/child-process-utils";
 import fs from "fs";
 import path from "path";
+import { createServer } from "node:http";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import sirv from "sirv";
 
 /**
  * @typedef {Object} FileChange
@@ -30,6 +33,13 @@ import { parseArgs } from "node:util";
 
 const COMMIT_SEPARATOR = "------------------------ commit separator ------------------------";
 const BODY_END = "------------------------ body end ------------------------";
+
+const DEFAULT_PORT = 7070;
+/** How many ports after the default to try when it is taken. */
+const PORT_ATTEMPTS = 10;
+/** The URL path the generated JSON is served at, next to the web frontend. */
+const DATA_URL_PATH = "/gitstat_result.json";
+const WEB_DIR = fileURLToPath(new URL("../web", import.meta.url));
 
 async function* getCommits() {
 	/** @type {string[]} */
@@ -260,7 +270,108 @@ async function main() {
 		process.stderr.write(
 			`Wrote gitstat output to ${cliOptions.outPath} in ${formatDuration(durationMs)}.\n`,
 		);
+		if (cliOptions.serve) {
+			await serve(cliOptions);
+		}
 	}
+}
+
+/**
+ * Serves the web frontend and the generated JSON on localhost. The page is
+ * opened with `?data=` pointing at the JSON, which makes the frontend load it
+ * on boot. Keeps running until the process is interrupted.
+ *
+ * @param {CliOptions} cliOptions
+ * @returns {Promise<void>}
+ */
+async function serve(cliOptions) {
+	const dataPath = path.resolve(cliOptions.outPath);
+	// Dev mode looks files up per request instead of crawling the folder up
+	// front, and sends no-store so a newer package version is never stale.
+	const assets = sirv(WEB_DIR, { dev: true });
+	const server = createServer((req, res) => {
+		const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+		if (pathname !== DATA_URL_PATH) {
+			assets(req, res);
+			return;
+		}
+		fs.stat(dataPath, (error, stats) => {
+			if (error) {
+				res.writeHead(404).end();
+				return;
+			}
+			res.writeHead(200, {
+				"Content-Type": "application/json; charset=utf-8",
+				"Content-Length": stats.size,
+				"Cache-Control": "no-store",
+			});
+			fs.createReadStream(dataPath).pipe(res);
+		});
+	});
+
+	const port = await listen(server, cliOptions.port);
+	const url = `http://127.0.0.1:${port}/?data=${DATA_URL_PATH.slice(1)}#/graphs`;
+	process.stderr.write(`Serving the gitstat web frontend at ${url}\nPress Ctrl+C to stop.\n`);
+	if (cliOptions.open) {
+		openBrowser(url);
+	}
+}
+
+/**
+ * Starts listening on 127.0.0.1. With no explicit port, tries the default and
+ * the next few ports after it when they are taken.
+ *
+ * @param {import("node:http").Server} server
+ * @param {number | null} port The port given with --port, if any
+ * @returns {Promise<number>} The port listened on
+ */
+async function listen(server, port) {
+	const candidates =
+		port !== null
+			? [port]
+			: Array.from({ length: PORT_ATTEMPTS }, (_, i) => DEFAULT_PORT + i);
+	for (const candidate of candidates) {
+		try {
+			await new Promise((resolve, reject) => {
+				server.once("error", reject);
+				server.listen(candidate, "127.0.0.1", () => {
+					server.off("error", reject);
+					resolve(undefined);
+				});
+			});
+			return candidate;
+		} catch (error) {
+			const code = /** @type {NodeJS.ErrnoException} */ (error).code;
+			if (code !== "EADDRINUSE") throw error;
+		}
+	}
+	throw new Error(
+		port !== null
+			? `Port ${port} is already in use.`
+			: `Ports ${DEFAULT_PORT}-${DEFAULT_PORT + PORT_ATTEMPTS - 1} are all in use. Pick one with --port.`,
+	);
+}
+
+/**
+ * Opens a URL in the default browser. Failure is ignored; the URL has already
+ * been printed.
+ *
+ * @param {string} url
+ * @returns {void}
+ */
+function openBrowser(url) {
+	/** @type {[string, string[]]} */
+	const [command, args] =
+		process.platform === "darwin"
+			? ["open", [url]]
+			: process.platform === "win32"
+				? // start takes its first quoted argument as the window title,
+					// so give it an empty one.
+					["cmd", ["/c", "start", "", url]]
+				: ["xdg-open", [url]];
+	const child = spawn(command, args, { stdio: "ignore", detached: true });
+	child.on("error", () => {});
+	child.unref();
 }
 
 main().catch((error) => {
@@ -274,6 +385,9 @@ main().catch((error) => {
  * @property {boolean} stdout
  * @property {boolean} authorDate
  * @property {string} outPath
+ * @property {boolean} serve
+ * @property {boolean} open
+ * @property {number | null} port
  */
 
 /**
@@ -287,9 +401,13 @@ function parseCliOptions() {
 			stdout: { type: "boolean" },
 			out: { type: "string", short: "o" },
 			"author-date": { type: "boolean" },
+			serve: { type: "boolean", default: true },
+			open: { type: "boolean", default: true },
+			port: { type: "string", short: "p" },
 		},
 		strict: true,
 		allowPositionals: false,
+		allowNegative: true,
 	});
 
 	const help = Boolean(values.help);
@@ -301,7 +419,18 @@ function parseCliOptions() {
 		throw new Error("Cannot use both --stdout and --out.");
 	}
 
-	return { help, stdout, authorDate, outPath };
+	// Writing to stdout is for piping the JSON elsewhere, so it never serves.
+	const serve = !stdout && values.serve !== false;
+	const open = values.open !== false;
+	let port = null;
+	if (values.port != null) {
+		port = Number(values.port);
+		if (!Number.isInteger(port) || port < 1 || port > 65535) {
+			throw new Error(`Invalid --port: ${values.port}`);
+		}
+	}
+
+	return { help, stdout, authorDate, outPath, serve, open, port };
 }
 
 /**
@@ -310,15 +439,24 @@ function parseCliOptions() {
 function getHelpText() {
 	return `smol-gitstat
 
+Generates gitstat_result.json from the current git repository, then serves
+the gitstat web frontend on localhost with that data loaded and opens it in
+the browser. Press Ctrl+C to stop the server.
+
 Usage:
   smol-gitstat [--out <path> | --stdout] [--author-date]
+               [--no-serve] [--no-open] [--port <n>]
 
 Options:
   -o, --out <path>  Write output to a file (default: gitstat_result.json)
-      --stdout      Write output to stdout instead of a file
+      --stdout      Write output to stdout instead of a file. Does not serve.
       --author-date Use the author date as the commit date. Useful for
                     long-lived branches, where commit dates reflect when the
                     branch was merged rather than when the work was done.
+      --no-serve    Only write the file; do not start the web frontend
+      --no-open     Serve, but do not open the browser
+  -p, --port <n>    Port to serve on (default: ${DEFAULT_PORT}, or the next free
+                    port after it). The frontend keeps its settings per port.
   -h, --help        Show this help
 `;
 }

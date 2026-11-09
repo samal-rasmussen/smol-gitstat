@@ -23,7 +23,14 @@
 	"files": [
 		"README.md",
 		"src/index.js",
-		"LICENSE.md"
+		"LICENSE.md",
+		"web/index.html",
+		"web/css",
+		"web/js",
+		"web/views",
+		"web/assets",
+		"web/vendor",
+		"web/LICENSE"
 	],
 	"scripts": {
 		"check": "tsc --noEmit",
@@ -34,6 +41,7 @@
 	},
 	"dependencies": {
 		"@simple-libs/child-process-utils": "1.0.1",
-		"@simple-libs/stream-utils": "1.1.0"
+		"@simple-libs/stream-utils": "1.1.0",
+		"sirv": "3.0.2"
 	}
 }
