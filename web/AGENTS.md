@@ -85,7 +85,9 @@ stores and the view components; load the persisted config from localStorage; if 
 has `?data=<url>`, fetch and import that dataset (replacing the stored one), then drop the
 parameter with `history.replaceState` so a reload restores from IndexedDB; otherwise open
 IndexedDB and, if a dataset is stored, load it; start the router; `Alpine.start()`. A
-failed `?data=` load is kept in `$store.app.bootError` and shown on the upload view. The
+failed `?data=` load is kept in `$store.app.bootError` and shown on the upload view. While
+the import runs, `<main>` holds a static "Loading …" placeholder; `x-view` replaces it with
+the first view. The
 `smol-gitstat` CLI serves this folder and opens it as `/?data=gitstat_result.json#/graphs`. The
 async steps are awaited before `start()` so the first render already knows whether data
 exists. Two shell details matter: deferred classic scripts and module scripts execute in
@@ -279,7 +281,9 @@ Pico provides the look. `css/app.css` is app-global only — the shell, icons, s
 shared utilities; view-specific rules live in the `<style>` block of the view's HTML
 file, nested under the view's wrapper class (`.commits-view` etc.) so they cannot leak. Comments at the rules explain anything non-obvious. The design principles behind
 the overrides: the app is denser than Pico's defaults (tightened globally through
-Pico's spacing custom properties, not per-element rules); data views (charts, tables) use
+Pico's spacing custom properties, not per-element rules); the base font size is fixed at
+100% — Pico's fluid typography, which scales it up to 131.25% on wide screens, is
+switched off; data views (charts, tables) use
 the full container width while form-and-prose views are capped at a readable width; on
 small screens the layout sheds rather than wraps (nav labels drop out, wide tables scroll
 sideways in their `overflow-auto` wrappers); tables use tabular numerals with

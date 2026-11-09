@@ -46,3 +46,17 @@ test("?data= with a bad URL shows why on the upload page", async ({ page }) => {
     "Could not load missing.json: fetching it failed with 404.",
   );
 });
+
+test("?data= shows a loading placeholder until the data is in", async ({ page }) => {
+  /** @type {() => void} */
+  let release = () => {};
+  const held = new Promise((resolve) => (release = () => resolve(undefined)));
+  await page.route("**/tests/fixtures/small.json", async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.goto("/?data=tests/fixtures/small.json#/graphs");
+  await expect(page.locator("main")).toHaveText("Loading tests/fixtures/small.json…");
+  release();
+  await expect(page.getByRole("heading", { name: "Graphs" })).toBeVisible();
+});

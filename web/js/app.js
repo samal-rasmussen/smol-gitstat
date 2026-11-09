@@ -41,6 +41,15 @@ registerConfigStore();
 const url = new URL(location.href);
 const dataUrl = url.searchParams.get("data");
 if (dataUrl !== null) {
+  // Alpine has not started yet, so show progress with plain DOM. `x-view`
+  // replaces the placeholder with the first view.
+  const main = document.querySelector("main");
+  if (main !== null) {
+    const placeholder = document.createElement("p");
+    placeholder.setAttribute("aria-busy", "true");
+    placeholder.textContent = `Loading ${dataUrl}…`;
+    main.replaceChildren(placeholder);
+  }
   try {
     await importUrl(dataUrl);
   } catch (error) {

@@ -250,13 +250,23 @@ async function main() {
       "commits": [
 `);
 
-	for await (const chunk of getCommits()) {
-		const commit = parseCommitChunk(chunk);
-		if (cliOptions.authorDate) {
-			commit.committer.time = commit.author.time;
+	const progress = createProgress();
+	let commitCount = 0;
+	progress.update("Reading commits…");
+	try {
+		for await (const chunk of getCommits()) {
+			const commit = parseCommitChunk(chunk);
+			if (cliOptions.authorDate) {
+				commit.committer.time = commit.author.time;
+			}
+			output.write(`${first ? "" : ",\n"}${JSON.stringify(commit, null, 2)}`);
+			first = false;
+			commitCount++;
+			progress.update(`Reading commits… ${commitCount.toLocaleString("en-US")}`);
 		}
-		output.write(`${first ? "" : ",\n"}${JSON.stringify(commit, null, 2)}`);
-		first = false;
+	} finally {
+		// Also on failure, so an error message starts on a clean line.
+		progress.clear();
 	}
 
 	output.write("\n      ]\n    }\n  ]\n}\n");
@@ -268,12 +278,44 @@ async function main() {
 		});
 		const durationMs = Date.now() - startTime;
 		process.stderr.write(
-			`Wrote gitstat output to ${cliOptions.outPath} in ${formatDuration(durationMs)}.\n`,
+			`Wrote ${commitCount.toLocaleString("en-US")} commits to ${cliOptions.outPath} in ${formatDuration(durationMs)}.\n`,
 		);
 		if (cliOptions.serve) {
 			await serve(cliOptions);
 		}
 	}
+}
+
+/** How often the progress line is redrawn. */
+const PROGRESS_INTERVAL_MS = 100;
+
+/**
+ * A single status line on stderr, redrawn in place. Does nothing when stderr
+ * is not a terminal, so logs and pipes stay clean. Redraws are throttled;
+ * the latest text is kept so a skipped update is not lost for long.
+ *
+ * @returns {{ update(text: string): void, clear(): void }}
+ */
+function createProgress() {
+	const stream = process.stderr;
+	if (!stream.isTTY) {
+		return { update() {}, clear() {} };
+	}
+	let lastDraw = 0;
+	let drawn = false;
+	return {
+		update(text) {
+			const now = Date.now();
+			if (drawn && now - lastDraw < PROGRESS_INTERVAL_MS) return;
+			lastDraw = now;
+			drawn = true;
+			stream.write(`\r\x1b[K${text}`);
+		},
+		clear() {
+			if (drawn) stream.write("\r\x1b[K");
+			drawn = false;
+		},
+	};
 }
 
 /**

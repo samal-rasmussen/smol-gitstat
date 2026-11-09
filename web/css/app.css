@@ -5,8 +5,12 @@
 
 /* Pico's spacing defaults are roomy; tighten the whole app via its custom
    properties: form element padding (inputs, selects, buttons) and the general
-   spacing unit (table cell padding, block margins). */
+   spacing unit (table cell padding, block margins). The font size is pinned:
+   Pico's fluid typography grows it in steps up to 131.25% on wide screens,
+   which makes text and controls oversized. This file loads after Pico, so the
+   plain :root rule beats its media-query :root rules. */
 :root {
+  --pico-font-size: 100%;
   --pico-form-element-spacing-vertical: 0.4rem;
   --pico-form-element-spacing-horizontal: 0.75rem;
   --pico-spacing: 0.75rem;
@@ -71,8 +75,8 @@
 }
 @media (min-width: 768px) {
   fieldset.grid {
-    /* 11rem lets all five graph controls share one row at 1280px, where
-       Pico's fluid typography has grown 1rem to 20px. */
+    /* 11rem keeps selects and date inputs hand-sized and lets all five graph
+       controls share one row on a laptop-width window. */
     grid-template-columns: repeat(auto-fit, minmax(0, 11rem));
   }
 }
